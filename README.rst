@@ -27,15 +27,15 @@ Abstract
 
 Research publications
 ===============================
-1. Dorin D., Kiselev N. et al. Forecasting fMRI Images From Video Sequences: 
-Linear Model Analysis // Health Information Science and Systems. – 2024.
-2. Dorin D., Grabovoy A., Strijov V. Enhancing fMRI Data Decoding with 
-Spatiotemporal Characteristics in Limited Dataset. // Doklady Mathematics. – 2025.
+1. Dorin D., Kiselev N. et al. Forecasting fMRI Images From Video Sequences: Linear Model Analysis // Health Information Science and Systems. – 2024. `Link <https://doi.org/10.1007/s13755-024-00315-5>`_
+
+2. Dorin D., Grabovoy A., Strijov V. Enhancing fMRI Data Decoding with Spatiotemporal Characteristics in Limited Dataset. // Doklady Mathematics. – 2025. `Link <https://www.mathnet.ru/php/archive.phtml?wshow=paper&jrnid=danma&paperid=664&option_lang=eng>`_
 
 
 Presentations at conferences on the topic of research
 ================================================
-1.Дорин Д.Д., Киселев Н.С., Грабовой А.В. Пространственно-временные методы анализа временных рядов //
-66-я Всероссийская научная конференция МФТИ
+1.Дорин Д.Д., Киселев Н.С., Грабовой А.В. Пространственно-временные методы анализа временных рядов // 66-я Всероссийская научная конференция МФТИ
+
 2. Дорин Д.Д., Грабовой А.В. Улучшение декодирования фМРТ в условиях ограниченной выборки // 67-я Всероссийская научная конференция МФТИ
+
 3. Дорин Д.Д., Киселев Н.С., Грабовой А.В. Декодирование визуальных стимулов из мультимодальных сигналов мозга // 22-я конференция «Математические методы распознавания образов» (ММРО-2025)
