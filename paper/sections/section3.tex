@@ -1,3 +1,169 @@
-\section{Вычислительный эксперимент}\label{sec3}
+\section{Предлагаемый метод}\label{sec3}
 
-TODO
+В данной главе описывается метод решения задачи~\eqref{eq:target}. Метод состоит из четырёх компонентов: предобработки данных с явным учётом гемодинамической задержки $\Delta t$ через решение обратной задачи~\eqref{eq:inverse_task}, архитектуры мультимодального энкодера, контрастивного обучения с введением метрики качества и двухстадийной диффузионной генерации. Общая схема приведена на рис.~\ref{fig:scheme_method}.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figure_1.pdf}
+    \caption{Общая схема предложенного метода. На этапе контрастивного обучения комбинированный эмбеддинг $\mathbf{Z}_c$ выравнивается с замороженным CLIP-эмбеддингом $\mathbf{Z}_I$. На этапе генерации априорная диффузионная модель уточняет $\mathbf{Z}_c$ до оценки $\widehat{\mathbf{Z}}_I$, после чего предобученная SDXL синтезирует изображение, обусловленное на $\widehat{\mathbf{Z}}_I$}
+    \label{fig:scheme_method}
+\end{figure}
+
+\subsection{Предобработка данных и учёт гемодинамической задержки}\label{sec3:preproc}
+
+\paragraph{Предобработка фМРТ.}
+Каждый фМРТ-скан $\mathbf{F}_i$ проходит стандартную процедуру предобработки: коррекцию движения, пространственное сглаживание гауссовым ядром, нормализацию вокселей. Для снижения размерности и удаления фоновых вокселей строится индивидуальная бинарная маска мозга. Для каждого испытуемого вычисляется тензор суммарной абсолютной разности значений вокселей во времени:
+\begin{equation}\label{eq:mask_score}
+m_{ijk} = \sum_{t=2}^{T_{\text{scan}}} \left| v^{t}_{ijk} - v^{t-1}_{ijk} \right|,
+\end{equation}
+где $v^{t}_{ijk}$~--- значение вокселя $(i,j,k)$ в момент $t$, а $T_{\text{scan}}$~--- длина временного ряда фМРТ. К полученному тензору $m = [m_{ijk}]$ применяется алгоритм автоматического выбора порога Оцу~\cite{otsu1975threshold}: вычисляется порог $\theta^*$, разделяющий распределение значений $m_{ijk}$ на два класса с максимальной межклассовой дисперсией, и бинарная маска определяется как
+\begin{equation}\label{eq:mask}
+M_{ijk} = \mathbb{1}\{m_{ijk} > \theta^*\}.
+\end{equation}
+Дальнейшая обработка фМРТ выполняется только на вокселях, для которых $M_{ijk} = 1$.
+
+\paragraph{Предобработка ЭЭГ.}
+Регистрация ЭЭГ в условиях работающего магнитно-резонансного томографа сопровождается двумя классами артефактов~\cite{ritter2006simultaneous}: градиентными артефактами от переключения магнитных полей и кардиобаллистическими артефактами от пульсации сосудов. Подавление артефактов выполняется методом оптимальных базисных наборов~\cite{niazy2005removal}: для каждого типа артефакта вычисляется главный шаблон и вычитается из сигнала. Далее применяется полосовая фильтрация и усреднённое реферирование.
+
+\paragraph{Решение обратной задачи и определение $\Delta t$.}
+Для оценки гемодинамической задержки строится отображение $\mathbf{g}: \mathcal{Y} \to \mathcal{X}_f$ из обратной задачи~\eqref{eq:inverse_task}. В качестве данных используется отдельный набор с одновременной регистрацией фМРТ и видеостимулов~\cite{Berezutskaya2022, dorin2024forecasting}. Пусть $\mu$~--- частота сканирования фМРТ, $\nu$~--- частота кадров видео, $t$~--- длительность записи. Последовательности фМРТ-сканов и изображений-стимулов обозначим
+\begin{equation}\label{eq:fmri_seq}
+\mathbf{F}_1, \mathbf{F}_2, \ldots, \mathbf{F}_{\mu t}, \qquad \mathbf{F}_{\ell} \in \mathcal{X}_f,
+\end{equation}
+\begin{equation}\label{eq:img_seq}
+\mathbf{I}_1, \mathbf{I}_2, \ldots, \mathbf{I}_{\nu t}, \qquad \mathbf{I}_{\ell} \in \mathcal{Y}.
+\end{equation}
+Принимается марковское свойство временного ряда фМРТ: каждый последующий скан зависит только от предыдущего и от видеокадра, предъявленного на $\Delta t$ секунд ранее. Это позволяет перейти к моделированию приращений
+\begin{equation}\label{eq:delta_scan}
+\boldsymbol{\delta}_{\ell} = \mathbf{F}_{\ell} - \mathbf{F}_{\ell-1}, \qquad \ell = 2, \ldots, \mu t,
+\end{equation}
+причём обратное отображение~\eqref{eq:inverse_task} задаёт связь
+\begin{equation}\label{eq:delta_model}
+\mathbf{g}(\mathbf{I}_{k_{\ell} - \nu \Delta t}) = \boldsymbol{\delta}_{\ell}, \qquad k_{\ell} = \frac{\ell \cdot \nu}{\mu},
+\end{equation}
+где $k_{\ell}$~--- индекс видеокадра, синхронизированного по времени с $\ell$-м фМРТ-сканом.
+
+\paragraph{Параметризация и оценивание.}
+Отображение $\mathbf{g}$ представимо в виде суперпозиции $\mathbf{g} = \boldsymbol{\varphi} \circ \boldsymbol{\psi}_{\text{vis}}$, где $\boldsymbol{\psi}_{\text{vis}}: \mathcal{Y} \to \bbR^d$~--- предобученный визуальный энкодер (ResNet152~\cite{he2015deep} без последнего линейного слоя или Vision Transformer~\cite{dosovitskiy2021imageworth16x16words}), сопоставляющий каждому кадру эмбеддинг $\mathbf{z}_{\ell} = \boldsymbol{\psi}_{\text{vis}}(\mathbf{I}_{\ell}) \in \bbR^d$, а $\boldsymbol{\varphi}: \bbR^d \to \bbR^{X \times Y \times Z}$~--- покомпонентная линейная регрессия по вокселям. Для каждого вокселя $(i,j,k)$ модель имеет вид
+\begin{equation}\label{eq:voxel_linear}
+f_{ijk}(\mathbf{z}_{\ell}, \mathbf{w}_{ijk}) = \langle \mathbf{z}_{\ell}, \mathbf{w}_{ijk} \rangle, \qquad \mathbf{w}_{ijk} \in \bbR^d,
+\end{equation}
+параметры $\mathbf{w}_{ijk}$ оцениваются методом наименьших квадратов с $L_2$-регуляризацией:
+\begin{equation}\label{eq:ridge}
+\hat{\mathbf{w}}_{ijk} = \argmin_{\mathbf{w}_{ijk}} \sum_{\ell=2}^{N} \big(f_{ijk}(\mathbf{z}_{\ell}, \mathbf{w}_{ijk}) - \delta^{\ell}_{ijk}\big)^2 + \alpha \|\mathbf{w}_{ijk}\|_2^2,
+\end{equation}
+где $\alpha \in \bbR_+$~--- коэффициент регуляризации. Через матрицу визуальных эмбеддингов $\boldsymbol{\Psi} = [\mathbf{z}_2, \ldots, \mathbf{z}_N]^{\T} \in \bbR^{(N-1) \times d}$ (далее~--- \emph{дизайн-матрица}) и вектор приращений $\boldsymbol{\Delta}_{ijk} = [\delta^2_{ijk}, \ldots, \delta^N_{ijk}]^{\T}$ записывается аналитическое решение
+\begin{equation}\label{eq:ridge_sol}
+\hat{\mathbf{w}}_{ijk} = \big(\boldsymbol{\Psi}^{\T} \boldsymbol{\Psi} + \alpha \mathbf{I}_d\big)^{-1} \boldsymbol{\Psi}^{\T} \boldsymbol{\Delta}_{ijk},
+\end{equation}
+где $\mathbf{I}_d \in \bbR^{d \times d}$~--- единичная матрица. Оценки по всем вокселям объединяются в матрицу
+\begin{equation}\label{eq:W_matrix}
+\hat{\mathbf{W}} = [\hat{\mathbf{w}}_1, \ldots, \hat{\mathbf{w}}_{XYZ}]^{\T} \in \bbR^{XYZ \times d}.
+\end{equation}
+Авторегрессионный прогноз $\ell$-го фМРТ-скана имеет вид
+\begin{equation}\label{eq:forecast}
+\mathrm{vec}(\hat{\mathbf{F}}_{\ell}) = \mathrm{vec}(\mathbf{F}_{\ell-1}) + \hat{\mathbf{W}} \mathbf{z}_{\ell}.
+\end{equation}
+Параметр $\Delta t$ варьируется в дискретном диапазоне; для каждого значения переобучается модель~\eqref{eq:ridge_sol} и вычисляется ошибка прогноза. Оптимальное значение $\Delta t$ выбирается из минимума ошибки $\mathrm{MSE}$, вычисленной на вокселях затылочной доли~\cite{anderson2006}, и фиксируется при формировании триплетов основного эксперимента согласно~\eqref{eq:shift}. Экспериментальная процедура оценки $\Delta t$ приведена в Главе~\ref{sec4}.
+
+\subsection{Архитектура мультимодального энкодера}\label{sec3:arch}
+
+Целевое отображение $\mathbf{f}$ из~\eqref{eq:target} реализуется через два независимых модальностных энкодера и обучаемый модуль объединения. Архитектуры энкодеров представлены на рис.~\ref{fig:encoders}.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figure_2.pdf}
+    \caption{Архитектуры энкодеров. (а)~Энкодер ЭЭГ объединяет обучаемый индивидуальный эмбеддинг испытуемого с многоканальной записью посредством конкатенации, после чего применяются три свёртки (по времени, по каналам и глобальная) и MLP-голова. (б)~Энкодер фМРТ выполняет персонализированное маскирование мозга и индивидуальную линейную проекцию вокселей в общее латентное пространство; завершающая обработка~--- MLP с остаточными соединениями}
+    \label{fig:encoders}
+\end{figure}
+
+\paragraph{Энкодер ЭЭГ.}
+Энкодер $\mathcal{E}_e: \mathcal{X}_e \to \bbR^{d_e}$ реализован как последовательность трёх свёрточных слоёв и MLP-головы. Для учёта межсубъектной вариабельности к многоканальной записи $\mathbf{E} \in \bbR^{K \times T}$ добавляется обучаемый индивидуальный эмбеддинг испытуемого как дополнительный канал. Свёртки применяются последовательно: одномерная свёртка по временному измерению, одномерная свёртка по канальному измерению, глобальная свёртка для сжатия признаков в вектор. MLP-голова отображает полученный вектор в латентное пространство размерности $d_e$:
+\begin{equation}\label{eq:Ze}
+\mathbf{Z}_e = \mathcal{E}_e(\mathbf{E}) \in \bbR^{B \times d_e},
+\end{equation}
+где $B$~--- размер батча.
+
+\paragraph{Энкодер фМРТ.}
+Энкодер $\mathcal{E}_f: \mathcal{X}_f \to \bbR^{d_f}$ построен на индивидуальной линейной проекции и остаточном MLP. Для каждого испытуемого с использованием бинарной маски~\eqref{eq:mask} выделяются информативные воксели, формируется их векторизованное представление и применяется индивидуальный для испытуемого линейный слой, отображающий это представление в общее латентное пространство фиксированной размерности. Дальнейшая обработка~--- MLP с остаточными соединениями, LayerNorm и нелинейностью GELU. Выходное представление имеет вид
+\begin{equation}\label{eq:Zf}
+\mathbf{Z}_f = \mathcal{E}_f(\mathbf{F}) \in \bbR^{B \times d_f}.
+\end{equation}
+Использование индивидуального линейного слоя для каждого испытуемого компенсирует различия анатомии и индивидуальную структуру маски мозга, сохраняя общую часть архитектуры разделяемой между испытуемыми.
+
+\paragraph{Модуль объединения.}
+Модуль объединения $\mathcal{F}: \bbR^{d_f} \times \bbR^{d_e} \to \bbR^d$ интегрирует пространственно детализированное представление фМРТ и временно детализированное представление ЭЭГ в единый эмбеддинг:
+\begin{equation}\label{eq:Zc}
+\mathbf{Z}_c = \mathcal{F}(\mathbf{Z}_f, \mathbf{Z}_e) \in \bbR^{B \times d}.
+\end{equation}
+В работе $\mathcal{F}$ реализован как двухслойный MLP над конкатенацией $[\mathbf{Z}_f; \mathbf{Z}_e]$. Размерность $d$ выбирается равной размерности пространства CLIP-эмбеддингов для прямого выравнивания на этапе контрастивного обучения.
+
+\subsection{Контрастивное обучение и метрика качества}\label{sec3:contrastive}
+
+\paragraph{Визуальные эмбеддинги.}
+Эмбеддинг $\mathbf{Z}_I$ изображения-стимула вычисляется замороженным визуальным энкодером модели CLIP ViT-H/14~\cite{radford2021learning}:
+\begin{equation}\label{eq:ZI}
+\mathbf{Z}_I = \boldsymbol{\phi}(\mathbf{I}) \in \bbR^{B \times d},
+\end{equation}
+параметры $\boldsymbol{\phi}$ не обновляются.
+
+\paragraph{Функция потерь.}
+Эмбеддинги нормируются по евклидовой норме:
+\begin{equation*}
+\mathbf{Z}_I^n = \frac{\mathbf{Z}_I}{\|\mathbf{Z}_I\|}, \qquad \mathbf{Z}_c^n = \frac{\mathbf{Z}_c}{\|\mathbf{Z}_c\|},
+\end{equation*}
+и вычисляется матрица логитов
+\begin{equation}\label{eq:logits}
+\mathbf{L} = \mathbf{Z}_I^n \big(\mathbf{Z}_c^n\big)^{\T} \cdot e^{\tau},
+\end{equation}
+где $\tau$~--- обучаемый параметр температуры. Применяется симметричная контрастивная функция потерь, аналогичная~\cite{radford2021learning}:
+\begin{equation}\label{eq:contrastive_loss}
+\mathcal{L}_{\text{contr}} = -\frac{1}{2B}\sum_{b=0}^{B-1}\!\left[ \log\frac{\exp(\mathbf{L}_{bb})}{\sum_{j=0}^{B-1}\exp(\mathbf{L}_{bj})} + \log\frac{\exp(\mathbf{L}_{bb})}{\sum_{i=0}^{B-1}\exp(\mathbf{L}_{ib})} \right].
+\end{equation}
+Оптимизируются параметры $\mathcal{E}_f$, $\mathcal{E}_e$, $\mathcal{F}$ и $\tau$; параметры $\boldsymbol{\phi}$ остаются замороженными. Иллюстрация формирования батча и логитов приведена на рис.~\ref{fig:contrastive}.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.7\textwidth]{figure_3.pdf}
+    \caption{Контрастивное обучение комбинированного представления фМРТ-ЭЭГ. Положительные пары расположены на главной диагонали матрицы логитов размера $B \times B$, остальные $B(B-1)$ пар используются как отрицательные примеры}
+    \label{fig:contrastive}
+\end{figure}
+
+\paragraph{Метрика качества реконструкции.}
+Качество реконструированного изображения $\widehat{\mathbf{I}} = \mathbf{f}(\mathbf{F}, \mathbf{E})$ относительно истинного стимула $\mathbf{I}$ оценивается метрикой CLIP-Score~--- косинусной близостью в пространстве визуальных эмбеддингов:
+\begin{equation}\label{eq:clip_score}
+\mathrm{CLIP\text{-}Score}(\widehat{\mathbf{I}}, \mathbf{I}) = \frac{\langle \boldsymbol{\phi}(\widehat{\mathbf{I}}), \boldsymbol{\phi}(\mathbf{I}) \rangle}{\|\boldsymbol{\phi}(\widehat{\mathbf{I}})\| \cdot \|\boldsymbol{\phi}(\mathbf{I})\|}.
+\end{equation}
+Чем выше CLIP-Score, тем ближе семантическое содержание реконструкции к содержанию исходного стимула. Метрика ориентирована на семантический уровень и не чувствительна к пиксельным деталям; это ограничение обсуждается в Главе~\ref{sec4}.
+
+\subsection{Двухстадийная диффузионная генерация изображения}\label{sec3:gen}
+
+Восстановление изображения $\widehat{\mathbf{I}}$ по комбинированному эмбеддингу $\mathbf{Z}_c$ выполняется в два этапа. Формально вводится совместное распределение изображения $\mathbf{x}$ и его CLIP-эмбеддинга $\mathbf{z}_I$ при условии нейронного представления $\mathbf{z}_c$:
+\begin{equation*}
+p(\mathbf{x}, \mathbf{z}_I \mid \mathbf{z}_c) = p(\mathbf{z}_I \mid \mathbf{z}_c) \cdot p(\mathbf{x} \mid \mathbf{z}_I).
+\end{equation*}
+Первый сомножитель моделируется априорной диффузионной моделью в CLIP-пространстве, второй~--- предобученной латентно-диффузионной моделью генерации изображений.
+
+\paragraph{Стадия I: априорная диффузионная модель.}
+Цель априорной модели~--- уточнить контрастивно обученный эмбеддинг $\mathbf{Z}_c$ до согласованного с распределением CLIP-эмбеддингов реальных изображений представления $\widehat{\mathbf{Z}}_I$. В пространстве CLIP-эмбеддингов обучается лёгкая диффузионная модель вида
+\begin{equation}\label{eq:prior_model}
+\boldsymbol{\epsilon}_{\boldsymbol{\theta}}(\mathbf{z}_I^{(t)}, t, \mathbf{z}_c),
+\end{equation}
+где $\mathbf{z}_I^{(t)}$~--- зашумлённая версия истинного эмбеддинга $\mathbf{z}_I$ на шаге $t$ прямого диффузионного процесса. Обучение проводится по схеме DDPM~\cite{ho2020denoisingdiffusionprobabilisticmodels} с функцией потерь
+\begin{equation}\label{eq:prior_loss}
+\mathcal{L}_{\text{prior}}(\boldsymbol{\theta}) = \bbE_{\mathbf{z}_I, \mathbf{z}_c, t, \boldsymbol{\epsilon}}\left\| \boldsymbol{\epsilon} - \boldsymbol{\epsilon}_{\boldsymbol{\theta}}(\mathbf{z}_I^{(t)}, t, \mathbf{z}_c)\right\|_2^2.
+\end{equation}
+На этом этапе параметры $\mathcal{E}_f$, $\mathcal{E}_e$, $\mathcal{F}$ остаются замороженными. На этапе исполнения априорная модель порождает оценку $\widehat{\mathbf{Z}}_I \approx \mathbf{Z}_I$ итеративной процедурой расшумления, начиная с шумного $\mathbf{z}_I^{(T)}$ и используя $\mathbf{z}_c$ как условие.
+
+\paragraph{Стадия II: генерация изображения.}
+Финальная реконструкция изображения выполняется предобученной латентно-диффузионной моделью Stable Diffusion XL~\cite{podell2023sdxlimprovinglatentdiffusion}:
+\begin{equation}\label{eq:sdxl}
+\boldsymbol{\epsilon}_{\boldsymbol{\phi}}\big(\mathbf{x}^{(t)}, t, h(\widehat{\mathbf{Z}}_I)\big),
+\end{equation}
+где $\mathbf{x}^{(t)}$~--- зашумлённое латентное представление изображения на шаге $t$, а $h$~--- адаптер IP-Adapter~\cite{ye2023ipadaptertextcompatibleimage}, переводящий $\widehat{\mathbf{Z}}_I$ в формат условия, совместимый с SDXL. Параметры $\boldsymbol{\phi}$ и $h$ не дообучаются.
+
+\subsection{Итоговая схема и личный вклад}\label{sec3:summary}
+
+Предложенный метод сводится к следующей последовательности шагов: предобработка фМРТ и ЭЭГ с построением индивидуальных бинарных масок мозга~\eqref{eq:mask}; решение обратной задачи~\eqref{eq:inverse_task} для оценки $\Delta t$ и формирование триплетов $(\mathbf{F}_i, \mathbf{E}_i, \mathbf{I}_i)$ согласно~\eqref{eq:shift}; контрастивное обучение энкодеров $\mathcal{E}_f$, $\mathcal{E}_e$ и модуля объединения $\mathcal{F}$ с функцией потерь~\eqref{eq:contrastive_loss}; обучение априорной диффузионной модели~\eqref{eq:prior_model} в CLIP-пространстве; реконструкция изображения предобученной SDXL~\eqref{eq:sdxl} с обусловливанием на $\widehat{\mathbf{Z}}_I$.
+
+Личный вклад автора в данной главе: формализация компонента предобработки с учётом $\Delta t$ как связующего звена между обратной задачей и контрастивным обучением; проектирование архитектуры мультимодального энкодера~\eqref{eq:Zc} и согласованной схемы обучения. Готовыми взяты замороженный визуальный энкодер CLIP~\cite{radford2021learning}, предобученная SDXL~\cite{podell2023sdxlimprovinglatentdiffusion}, IP-Adapter~\cite{ye2023ipadaptertextcompatibleimage} и схема DDPM~\cite{ho2020denoisingdiffusionprobabilisticmodels}.

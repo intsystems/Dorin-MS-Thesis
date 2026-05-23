@@ -1,0 +1,55 @@
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{section}{Обозначения и сокращения}
+\section*{Обозначения и сокращения}
+
+\subsection*{Сокращения}
+\begin{tabular}{p{0.18\textwidth}p{0.78\textwidth}}
+ИМК & интерфейс мозг-компьютер \\
+фМРТ & функциональная магнитно-резонансная томография \\
+ЭЭГ & электроэнцефалография \\
+BOLD & blood-oxygen-level dependent \\
+EPI & echo-planar imaging \\
+CLIP & Contrastive Language-Image Pre-training \\
+SDXL & Stable Diffusion XL \\
+DDPM & Denoising Diffusion Probabilistic Model \\
+IP-Adapter & Image Prompt Adapter \\
+MLP & multilayer perceptron \\
+ViT & Vision Transformer \\
+GELU & Gaussian Error Linear Unit \\
+MSE & среднеквадратичная ошибка \\
+MAPE & средняя абсолютная процентная ошибка \\
+CLIP-Score & косинусная близость в пространстве CLIP-эмбеддингов \\
+\end{tabular}
+
+\vspace{1em}
+\subsection*{Основные обозначения}
+\begin{tabular}{p{0.18\textwidth}p{0.78\textwidth}}
+$\mathcal{X}_f, \mathcal{X}_e$ & пространства данных фМРТ и ЭЭГ \\
+$\mathcal{Y}$ & пространство визуальных стимулов \\
+$\mathbf{F}_i, \mathbf{E}_i, \mathbf{I}_i$ & фМРТ, ЭЭГ и изображение $i$-го наблюдения \\
+$\mathfrak{D}$ & обучающий набор триплетов \\
+$N$ & объём выборки \\
+$\mathbf{f}$ & целевое отображение $\mathcal{X}_f \times \mathcal{X}_e \to \mathcal{Y}$ \\
+$\mathbf{g}$ & отображение обратной задачи $\mathcal{Y} \to \mathcal{X}_f$ \\
+$\mathcal{E}_f, \mathcal{E}_e, \mathcal{F}$ & энкодеры фМРТ, ЭЭГ и модуль объединения \\
+$\mathbf{Z}_f, \mathbf{Z}_e, \mathbf{Z}_c, \mathbf{Z}_I$ & эмбеддинги фМРТ, ЭЭГ, комбинированный и CLIP \\
+$d_f, d_e, d$ & размерности латентных пространств \\
+$\boldsymbol{\phi}$ & замороженный визуальный энкодер CLIP \\
+$\Delta t$ & гемодинамическая задержка BOLD-сигнала \\
+$\mu, \nu$ & частоты дискретизации фМРТ и видео кадров \\
+$\mathbf{F}_\ell, \mathbf{I}_\ell$ & фМРТ-скан и видеокадр в момент $\ell$ \\
+$\boldsymbol{\delta}_\ell$ & приращение фМРТ $\mathbf{F}_\ell - \mathbf{F}_{\ell-1}$ \\
+$\boldsymbol{\psi}_{\text{vis}}$ & визуальный энкодер в обратной задаче \\
+$\boldsymbol{\varphi}$ & линейная регрессия по вокселям \\
+$\mathbf{z}_\ell$ & эмбеддинг видеокадра $\mathbf{I}_\ell$ \\
+$\boldsymbol{\Psi}$ & матрица визуальных эмбеддингов \\
+$\boldsymbol{\Delta}_{ijk}$ & вектор приращений в вокселе $(i,j,k)$ \\
+$\hat{\mathbf{w}}_{ijk}, \hat{\mathbf{W}}$ & оценки параметров: повоксельная и матричная \\
+$\mathbf{I}_d$ & единичная матрица $d \times d$ \\
+$\alpha$ & коэффициент $L_2$-регуляризации \\
+$\tau$ & обучаемая температура контрастивной функции потерь \\
+$\mathcal{L}_{\text{contr}}$ & контрастивная функция потерь  \\
+$\mathcal{L}_{\text{prior}}$ &  функция потерь априорной диффузионной модели \\
+$B$ & размер батча \\
+\end{tabular}
