@@ -8,9 +8,7 @@
 \usepackage{microtype}
 \usepackage{lipsum}
 \usepackage{graphicx}
-\usepackage{babelbib}
 \usepackage{subfig}
-\usepackage{bbold}
 \usepackage[square,sort,comma,numbers]{natbib}
 \usepackage{doi}
 \usepackage{multicol}
@@ -67,12 +65,16 @@
 \usepackage{setspace}
 \usepackage[center]{titlesec} % секции посередине
 
-%%% Точки после номеров разделов
-\renewcommand{\thesection}{\arabic{section}.}
-\renewcommand{\thesubsection}{\arabic{section}.\arabic{subsection}.}
-\renewcommand{\thesubsubsection}{\arabic{section}.\arabic{subsection}.\arabic{subsubsection}.}
-%%% Лишнее расстояние
-\titlelabel{\thetitle \ }
+%%% Убираем точки из счётчиков (чтобы \ref не добавлял точку автоматически)
+\renewcommand{\thesection}{\arabic{section}}
+\renewcommand{\thesubsection}{\arabic{section}.\arabic{subsection}}
+\renewcommand{\thesubsubsection}{\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}
+
+%%% Возвращаем точки только в заголовки разделов (для оформления/ГОСТа)
+\usepackage{titlesec} % убедитесь, что пакет загружен один раз
+\titleformat{\section}{\centering\bfseries}{\thesection.}{1em}{}
+\titleformat{\subsection}{\centering\bfseries}{\thesubsection.}{1em}{}
+\titleformat{\subsubsection}{\centering\bfseries}{\thesubsubsection.}{1em}{}
 
 \usepackage{icomma}
 \usepackage{amsthm}
@@ -107,3 +109,45 @@
 \newtheorem*{solution}{Решение}
 
 \renewcommand{\abstractname}{Аннотация}
+
+% Индикаторная функция (дублирующее определение для надёжности)
+\providecommand{\ind}{\mathds{1}}
+
+% Защита от отсутствующих определений месяцев и служебных команд
+% в стилях библиографии (utf8gost71u.bst использует \bblapr, \bblmar и т.п.,
+% которые не всегда определяются babel-russian в полном объёме).
+\AtBeginDocument{%
+  \providecommand{\bbljan}{январь}%
+  \providecommand{\bblfeb}{февраль}%
+  \providecommand{\bblmar}{март}%
+  \providecommand{\bblapr}{апрель}%
+  \providecommand{\bblmay}{май}%
+  \providecommand{\bbljun}{июнь}%
+  \providecommand{\bbljul}{июль}%
+  \providecommand{\bblaug}{август}%
+  \providecommand{\bblsep}{сентябрь}%
+  \providecommand{\bbloct}{октябрь}%
+  \providecommand{\bblnov}{ноябрь}%
+  \providecommand{\bbldec}{декабрь}%
+  % Дополнительные команды, ожидаемые ГОСТ-стилем
+  \providecommand{\bbland}{и}%
+  \providecommand{\bbletal}{и др.}%
+  \providecommand{\bblvol}{Т.}%
+  \providecommand{\bblno}{№}%
+  \providecommand{\bblpages}{с.}%
+  \providecommand{\bblpp}{С.}%
+  \providecommand{\bbleditor}{ред.}%
+  \providecommand{\bbleditors}{ред.}%
+  \providecommand{\bblch}{гл.}%
+  \providecommand{\bbltechreport}{Технический отчёт}%
+  \providecommand{\bblmastersthesis}{Магистерская диссертация}%
+  \providecommand{\bblphdthesis}{Дис.\,\dots\,канд. наук}%
+  \providecommand{\bblinpress}{в печати}%
+  \providecommand{\bblsubmitted}{отправлено в печать}%
+  \providecommand{\bblforthcoming}{принято к печати}%
+  \providecommand{\bblavailablefrom}{Режим доступа}%
+  \providecommand{\bblnoaddress}{Б.м.}%
+  \providecommand{\bblnopublisher}{Б.и.}%
+  \providecommand{\bbljour}{Журн.}%
+  \providecommand{\bblOthers}{и др.}%
+}
