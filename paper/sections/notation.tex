@@ -14,6 +14,9 @@ SDXL & Stable Diffusion XL \\
 DDPM & Denoising Diffusion Probabilistic Model \\
 IP-Adapter & Image Prompt Adapter \\
 MLP & многослойный перцептрон \\
+ROI & Region of Interest \\
+TSM & Tangent Space Mapping \\
+MSE & среднеквадратичная ошибка восстановления \\
 CLIP-Score & косинусная близость в пространстве CLIP-эмбеддингов \\
 \end{tabular}
 
@@ -23,13 +26,21 @@ CLIP-Score & косинусная близость в пространстве C
 $\mathcal{X}_f, \mathcal{X}_e$ & пространства данных фМРТ и ЭЭГ \\
 $\mathcal{Y}$ & пространство визуальных стимулов \\
 $\mathbf{F}_i, \mathbf{E}_i, \mathbf{I}_i$ & фМРТ, ЭЭГ и изображение $i$-го наблюдения \\
-$\mathfrak{D}$ & обучающий набор триплетов \\
+$\mathbf{S}, \mathcal{T}, L$ & временной ряд фМРТ, его длина и число категорий \\
+$\mathfrak{D}$ & обучающая выборка \\
 $N$ & объем выборки \\
-$\mathbf{f}$ & целевое отображение $\mathcal{X}_f \times \mathcal{X}_e \to \mathcal{Y}$ \\
+$\mathbf{g}$ & общее отображение декодирования $\mathcal{X} \to \mathcal{Y}$ \\
+$\mathbf{q}$ & прогноз фМРТ-отклика по стимулу $\mathcal{Y} \to \mathcal{X}_f$ \\
+$\mathbf{h}$ & классификатор временных рядов $\mathcal{X}_s \to \{1, \ldots, L\}$ \\
+$\mathbf{f}$ & мультимодальное отображение $\mathcal{X}_f \times \mathcal{X}_e \to \mathcal{Y}$ \\
 $\mathcal{E}_f, \mathcal{E}_e, \mathcal{F}$ & энкодеры фМРТ, ЭЭГ и модуль объединения \\
 $\mathbf{Z}_f, \mathbf{Z}_e, \mathbf{Z}_c, \mathbf{Z}_I$ & эмбеддинги фМРТ, ЭЭГ, комбинированный и CLIP \\
 $d_f, d_e, d$ & размерности латентных пространств \\
 $\Delta t$ & гемодинамическая задержка BOLD-сигнала \\
+$\boldsymbol{\delta}(t)$ & приращение фМРТ-скана между соседними кадрами \\
+$\lambda$ & коэффициент $L_2$-регуляризации \\
+$\mathcal{M}, \mathcal{M}^{y}$ & бинарная маска активности: общая и для класса $y$ \\
+$\bar{\mathbf{R}}$ & риманово среднее ковариационных матриц \\
 $\tau$ & обучаемая температура контрастивной функции потерь \\
 $\mathcal{L}_{\text{contr}}$ & контрастивная функция потерь \\
 $\mathcal{L}_{\text{prior}}$ & функция потерь априорной диффузионной модели \\
