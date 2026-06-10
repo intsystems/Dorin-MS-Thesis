@@ -12,8 +12,8 @@
 ## Ресурсы
 
 - [Code](code)
-- [Paper](paper/main.pdf)
-- [Slides](slides/main.pdf)
+- [Paper](paper/Dorin_MS_Thesis.pdf)
+- [Slides](slides/Slides_Dorin_MS_Thesis.pdf)
 
 ## Аннотация
 
